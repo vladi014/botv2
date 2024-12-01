@@ -1,0 +1,17 @@
+
+{
+    "betfair": {
+        "username": "your_betfair_username",
+        "password": "your_betfair_password"
+    },
+    "codere": {
+        "username": "your_codere_username",
+        "password": "your_codere_password"
+    },
+    "bet": {
+        "username": "your_bet365_username",
+        "password": "your_bet365_password"
+    },
+    "max_bet": 100,
+    "log_level": "INFO"
+}

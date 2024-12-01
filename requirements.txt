@@ -1,0 +1,4 @@
+
+selenium==4.6.0
+chromedriver-autoinstaller==0.5.2
+unittest

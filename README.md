@@ -1,52 +1,40 @@
-
-# Sure Bet Project
+# Solana Meme Coin Bot
 
 ## Description
-This project provides a system for identifying and executing sure bets between multiple betting platforms. It is structured into modular components for easy maintenance and extensibility.
+This repository contains an asynchronous bot that scans for newly created pools on Solana and evaluates each token for potential rug pull risks and growth potential. It is a minimal demo that relies on mocked data but illustrates how a real implementation could monitor the network in real time.
 
 ## Project Structure
 ```
-refactored_sure_bet/
-├── crawler/         # Contains modules for handling different betting platforms
-├── stats/           # Includes statistical computations for sure bets
-├── tests/           # Unit tests for the project modules
-├── utils/           # Utility functions (if needed in the future)
-├── main.py          # Main entry point for the application
-└── README.md        # Instructions and documentation
+solana_bot/      # Package with bot modules
+├── onchain.py   # Helpers for fetching on-chain data
+├── offchain.py  # Functions for sentiment and listings
+├── scoring.py   # Risk and potential scoring logic
+├── main.py      # Entrypoint that coordinates the analysis
+
+ tests/          # Unit tests for scoring utilities
+ README.md       # Project information
+ requirements.txt
 ```
 
 ## Requirements
-- Python 3.8 or higher
-- Selenium WebDriver
-- Google Chrome browser and ChromeDriver
+- Python 3.8+
+- aiohttp
 
-## Installation
-1. Clone the repository or extract the files.
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Ensure ChromeDriver is installed and in your system's PATH.
+Install dependencies with:
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
-- To run the main application:
-  ```bash
-  python main.py
-  ```
+Run the bot demo:
+```bash
+python -m solana_bot.main
+```
 
-- To execute the tests:
-  ```bash
-  python -m unittest discover -s tests
-  ```
-
-## Modules Overview
-- **crawler/**: Handles interactions with different betting platforms.
-- **stats/**: Computes statistical models for sure bets.
-- **tests/**: Contains unit tests for verifying functionality.
-
-## Contributing
-Feel free to fork the repository and submit pull requests.
+Execute the tests:
+```bash
+python -m unittest discover -s tests
+```
 
 ## License
-This project is open-source and available under the MIT License.
+MIT

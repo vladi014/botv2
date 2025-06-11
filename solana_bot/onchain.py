@@ -1,69 +1,104 @@
-"""Asynchronous utilities for retrieving on-chain data about Solana tokens."""
+"""Asynchronous utilities for retrieving on-chain data about Solana tokens.
 
-import asyncio
+These helpers use Solana's public RPC endpoint and the Raydium API to collect
+metadata and liquidity information.  They are intentionally lightweight so
+they can be replaced or extended with more robust indexers in a production
+environment.
+"""
+
+import os
 from typing import List, Dict
 
-# In a real implementation these functions would query Solana RPC endpoints or
-# third party APIs. Here they return mocked data suitable for testing the bot
-# logic without network access.
+import aiohttp
 
-async def fetch_token_metadata(mint_address: str) -> Dict[str, str]:
-    """Return metadata for the given token mint.
+SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+RAYDIUM_PAIRS_URL = "https://api.raydium.io/v2/main/pairs"
 
-    Parameters
-    ----------
-    mint_address: str
-        Address of the SPL token mint.
+async def fetch_token_metadata(mint_address: str, session: aiohttp.ClientSession) -> Dict[str, str]:
+    """Return metadata for the given token mint from Solana RPC."""
 
-    Returns
-    -------
-    Dict[str, str]
-        Dictionary with keys ``mint_authority`` and ``freeze_authority``.
-    """
-    await asyncio.sleep(0)  # placeholder for I/O
-    return {"mint_authority": None, "freeze_authority": None}
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getAccountInfo",
+        "params": [mint_address, {"encoding": "jsonParsed"}],
+    }
+    async with session.post(SOLANA_RPC_URL, json=payload) as resp:
+        data = await resp.json()
 
+    value = data.get("result", {}).get("value")
+    if not value:
+        return {"mint_authority": None, "freeze_authority": None}
 
-async def fetch_liquidity(pool_address: str) -> Dict[str, float]:
-    """Return liquidity information for a Raydium/Orca pool.
-
-    The result includes the total amount of SOL, token quantity and a flag
-    indicating whether the LP tokens appear to be locked.
-    """
-    await asyncio.sleep(0)
-    return {"sol": 1000.0, "token": 500000.0, "lp_locked": True}
+    info = value.get("data", {}).get("parsed", {}).get("info", {})
+    return {
+        "mint_authority": info.get("mintAuthority"),
+        "freeze_authority": info.get("freezeAuthority"),
+    }
 
 
-async def get_top_holders(mint_address: str, limit: int = 10) -> List[Dict[str, float]]:
-    """Retrieve the top token holders.
+async def fetch_liquidity(mint_address: str, session: aiohttp.ClientSession) -> Dict[str, float]:
+    """Return liquidity information for a Raydium pool containing ``mint_address``."""
 
-    Parameters
-    ----------
-    mint_address: str
-        Token mint address.
-    limit: int, optional
-        Number of holders to return.
+    async with session.get(RAYDIUM_PAIRS_URL) as resp:
+        data = await resp.json()
 
-    Returns
-    -------
-    List[Dict[str, float]]
-        Each entry contains ``address``, ``balance`` and ``percentage``.
-    """
-    await asyncio.sleep(0)
-    supply = 1_000_000
-    holders = []
-    for i in range(limit):
-        holders.append({
-            "address": f"holder_{i}",
-            "balance": supply * 0.02,
-            "percentage": 2.0,
-        })
+    for pair in data:
+        if pair.get("baseMint") == mint_address or pair.get("quoteMint") == mint_address:
+            return {
+                "sol": pair.get("tokenAmountPc", 0.0),
+                "token": pair.get("tokenAmountCoin", 0.0),
+                "lp_locked": True,  # Raydium API doesn't expose lock status
+            }
+
+    return {"sol": 0.0, "token": 0.0, "lp_locked": False}
+
+
+async def get_top_holders(mint_address: str, session: aiohttp.ClientSession, limit: int = 10) -> List[Dict[str, float]]:
+    """Retrieve the top token holders using Solana RPC."""
+
+    supply_payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getTokenSupply",
+        "params": [mint_address],
+    }
+    largest_payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getTokenLargestAccounts",
+        "params": [mint_address],
+    }
+
+    async with session.post(SOLANA_RPC_URL, json=supply_payload) as resp:
+        supply_data = await resp.json()
+    async with session.post(SOLANA_RPC_URL, json=largest_payload) as resp:
+        largest_data = await resp.json()
+
+    supply = float(supply_data.get("result", {}).get("value", {}).get("uiAmount", 0))
+    accounts = largest_data.get("result", {}).get("value", [])[:limit]
+
+    holders: List[Dict[str, float]] = []
+    for acc in accounts:
+        amount = float(acc.get("uiAmount", 0))
+        pct = (amount / supply * 100) if supply else 0
+        holders.append({"address": acc.get("address"), "balance": amount, "percentage": pct})
+
     return holders
 
 
-async def check_custom_program(mint_address: str) -> bool:
-    """Detect unusual program behaviour or fees.
+async def check_custom_program(mint_address: str, session: aiohttp.ClientSession) -> bool:
+    """Detect whether ``mint_address`` is managed by a custom program."""
 
-    Returns ``True`` if the token appears suspicious (honeypot)."""
-    await asyncio.sleep(0)
-    return False
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getAccountInfo",
+        "params": [mint_address, {"encoding": "jsonParsed"}],
+    }
+    async with session.post(SOLANA_RPC_URL, json=payload) as resp:
+        data = await resp.json()
+
+    owner = data.get("result", {}).get("value", {}).get("owner")
+    # SPL token program id
+    return owner != "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"

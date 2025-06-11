@@ -18,10 +18,10 @@ async def analyze_token(token: dict, session: aiohttp.ClientSession) -> None:
     mint = token["mint_address"]
     symbol = token.get("symbol", "")
 
-    metadata = await fetch_token_metadata(mint)
-    liquidity = await fetch_liquidity(mint)
-    holders = await get_top_holders(mint)
-    custom = await check_custom_program(mint)
+    metadata = await fetch_token_metadata(mint, session)
+    liquidity = await fetch_liquidity(mint, session)
+    holders = await get_top_holders(mint, session)
+    custom = await check_custom_program(mint, session)
 
     safe, issues = rug_check(metadata, liquidity, holders, custom)
     if not safe:

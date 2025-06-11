@@ -1,35 +1,41 @@
 """Helpers for fetching off-chain sentiment and listings."""
 
-import asyncio
+import os
 from typing import List, Dict
+
+import aiohttp
 
 TWITTER_SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent"
 
-async def get_twitter_mentions(token_symbol: str, session) -> int:
-    """Return the number of recent Twitter mentions for ``token_symbol``.
+async def get_twitter_mentions(token_symbol: str, session: aiohttp.ClientSession) -> int:
+    """Return the number of recent Twitter mentions for ``token_symbol``."""
 
-    Parameters
-    ----------
-    token_symbol: str
-        Token symbol or mint to search for.
-    session:
-        Active HTTP session for requests.
-    """
+    bearer = os.getenv("TWITTER_BEARER_TOKEN")
+    if not bearer:
+        return 0
+
+    headers = {"Authorization": f"Bearer {bearer}"}
+    params = {"query": token_symbol, "max_results": 10}
+
     try:
-        await asyncio.sleep(0)
-        # Placeholder: real implementation would query Twitter's API
-        return 100
+        async with session.get(TWITTER_SEARCH_URL, params=params, headers=headers) as resp:
+            data = await resp.json()
+        return int(data.get("meta", {}).get("result_count", 0))
     except Exception:
         return 0
 
 
-async def get_new_pools(session) -> List[Dict[str, str]]:
-    """Fetch recently created pools from an external API.
+async def get_new_pools(session: aiohttp.ClientSession) -> List[Dict[str, str]]:
+    """Fetch recently created pools from the Raydium API."""
 
-    This demo uses static data to simulate the QuickNode `/new-pools` endpoint.
-    """
-    await asyncio.sleep(0)
-    return [
-        {"mint_address": "TokenA", "symbol": "TKA"},
-        {"mint_address": "TokenB", "symbol": "TKB"},
-    ]
+    try:
+        async with session.get("https://api.raydium.io/v2/main/pairs") as resp:
+            data = await resp.json()
+    except Exception:
+        return []
+
+    pools = []
+    for pair in data[:5]:  # take only a handful for demo
+        pools.append({"mint_address": pair.get("baseMint"), "symbol": pair.get("name", "").split("/")[0]})
+
+    return pools
